@@ -1,0 +1,16 @@
+#
+# systemd service file for PiServerStatusd
+#
+
+[Unit]
+Description=PiServerStatus Daemon
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/local/bin/piserverstatusd -c /etc/piserverstatusd.conf
+PIDFile=/var/run/piserverstatusd.pid
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
