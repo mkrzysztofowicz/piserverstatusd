@@ -23,6 +23,68 @@ import scrollphat
 
 from pydaemon import Daemon
 
+wxcodes = {
+    200: 'TS -RA',
+    201: 'TSRA',
+    202: 'TS +RA',
+    210: '-TS',
+    211: 'TS',
+    212: '+TS',
+    221: 'TS',
+    230: 'TS -DZ',
+    231: 'TSDZ',
+    232: 'TS +DZ',
+
+    300: '-DZ',
+    301: 'DZ',
+    302: '+DZ',
+    310: '-DZRA',
+    311: 'DZRA',
+    312: '+DZRA',
+    313: 'SHRADZ',
+    314: '+SHRADZ',
+    321: 'SHDZ',
+
+    500: '-RA',
+    501: 'RA',
+    502: '+RA',
+    503: '+RA',
+    504: '+RA',
+    511: 'FZRA',
+    520: '-SHRA',
+    521: 'SHRA',
+    522: '+SHRA',
+    531: 'SHRA',
+
+    600: '-SN',
+    601: 'SN',
+    602: '+SN',
+    611: 'RASN',
+    612: 'SHRASN',
+    615: '-RASN',
+    616: 'RASN',
+    620: '-SHSN',
+    621: 'SHSN',
+    622: '+SHSN',
+
+    701: 'BR',
+    711: 'FU',
+    721: 'HZ',
+    731: 'PO',  # sand or dust swirls
+    741: 'FG',
+    751: 'SA',  # sand
+    761: 'DU',  # widespread dust
+    762: 'VA',  # volcanic ash
+    771: 'SQ',  # squalls
+    781: 'FC',  # funnel cloud - tornado
+
+    800: 'SKC',
+    801: 'FEW',
+    802: 'SCT',
+    803: 'BKN',
+    804: 'OVC'
+}
+
 
 class StatusDaemon(Daemon):
 
@@ -41,7 +103,7 @@ class StatusDaemon(Daemon):
         self.owm = None
         self.wx = None
         self.wx_acquisition_ts = 0
-        self.wx_refresh_interval = 60
+        self.wx_refresh_interval = 300
 
         super().__init__(pidfile, config_file, stdin, stdout, stderr, daemon_name='piserverstatusd')
 
@@ -193,6 +255,19 @@ class StatusDaemon(Daemon):
             wind = self.wx.get_weather().get_wind()
             wv = '{:03}{:02}'.format(int(wind['deg']), int(self.mps_to_kt(wind['speed'])))
 
+            visibility = self.wx.get_weather().get_visibility_distance()
+
+            wxcode = self.wx.get_weather().get_weather_code()
+            if type(wxcode) == list:
+                weather = list()
+                for item in wxcode:
+                    if item > 800:
+                        weather.append(wxcodes[item])
+            else:
+                weather = None
+                if wxcode < 800:
+                    weather = wxcodes[wxcode]
+
             cloud = self.cloud(self.wx.get_weather().get_clouds())
 
             temps = self.wx.get_weather().get_temperature('celsius')
@@ -204,17 +279,26 @@ class StatusDaemon(Daemon):
 
             dewpoint = self.wx.get_weather().get_dewpoint() or self.dewpoint(temps['temp'], humidity)
 
+            rh = 'RH{}'.format(humidity)
+            t_dp = '{}/{}'.format(temperature, dewpoint)
+
             pressure = self.wx.get_weather().get_pressure()
 
-            qfe = 'QNH{}'.format(pressure['press']) or None
-            qnh = 'Q{}'.format(pressure['sea_level']) or None
+            qnh = None
+            qfe = None
+            if pressure['press']:
+                qfe = 'QFE{}'.format(pressure['press'])
+
+            if pressure['sea_level']:
+                qnh = 'Q{}'.format(pressure['sea_level'])
 
             wx = ['WX']
-            for item in [location.upper(), obtime, wv, cloud, temperature, dewpoint, humidity, qnh, qfe]:
+            for item in [location.upper(), obtime, wv, visibility, weather, cloud, t_dp, rh, qnh, qfe]:
                 if item is not None:
                     wx.append(item)
 
             wx = ' '.join(wx)
+            self.logger.info(wx)
             self.scroll_text(wx, scroll_interval)
 
     @staticmethod
