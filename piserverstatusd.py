@@ -206,8 +206,8 @@ class StatusDaemon(Daemon):
         return now.strftime('%H:%M:%S')
 
     def get_weather(self, latitude, longitude):
-        now = datetime.now().timestamp()
-        if now - self.wx_acquisition_ts > self.wx_refresh_interval:
+        now = datetime.now()
+        if now.minute == 1 or now.minute == 31 or now.timestamp() - self.wx_acquisition_ts > self.wx_refresh_interval:
             self.logger.info('Getting new weather for: {}, {}'.format(latitude, longitude))
             observations = None
 
@@ -218,7 +218,7 @@ class StatusDaemon(Daemon):
                                                                              str(e)))
             if len(observations):
                 self.wx = observations[0]
-                self.wx_acquisition_ts = now
+                self.wx_acquisition_ts = now.timestamp()
 
     def scroll_netinfo(self, interfaces, scroll_interval=0.1):
         sysinfo = list()
@@ -332,15 +332,19 @@ class StatusDaemon(Daemon):
 
     def run(self):
         scrollphat.set_brightness(self.scrollphat_brightness)
+        rotate = self.configuration.getboolean('scrollphat', 'flip', fallback=False)
+        scrollphat.set_rotate(rotate)
 
+        loop_runs = 0
         while True:
             try:
                 if self.configuration.getboolean('scrollphat', 'display_time', fallback=False):
                     self.scroll_time()
 
                 if self.configuration.getboolean('scrollphat', 'display_network', fallback=False):
-                    interfaces = ['eth0', 'wlan0']
-                    self.scroll_netinfo(interfaces)
+                    if divmod(loop_runs, 10)[1] == 0:
+                        interfaces = ['eth0', 'wlan0']
+                        self.scroll_netinfo(interfaces, scroll_interval=0.07)
 
                 if self.configuration.getboolean('scrollphat', 'display_cpuload', fallback=False):
                     self.scroll_cpuload()
@@ -349,7 +353,9 @@ class StatusDaemon(Daemon):
                     self.scroll_cpugraph()
 
                 if self.configuration.getboolean('scrollphat', 'display_weather', fallback=False):
-                    self.scroll_weather(scroll_interval=0.2)
+                    self.scroll_weather(scroll_interval=0.15)
+
+                loop_runs += 1
 
             except KeyboardInterrupt:
                 self.logger.info('Exiting')
