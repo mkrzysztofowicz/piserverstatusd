@@ -192,22 +192,29 @@ class StatusDaemon(Daemon):
 
             wind = self.wx.get_weather().get_wind()
             wv = '{:03}{:02}'.format(int(wind['deg']), int(self.mps_to_kt(wind['speed'])))
-            cloud = self.cloud(self.wx.get_weather().get_clouds())
-            temps = self.wx.get_weather().get_temperature('celsius')
-            humidity = self.wx.get_weather().get_humidity()
-            dewpoint = self.wx.get_weather().get_dewpoint()
-            if not dewpoint:
-                dewpoint = self.dewpoint(temps['temp'], humidity)
-            pressure = self.wx.get_weather().get_pressure()
 
+            cloud = self.cloud(self.wx.get_weather().get_clouds())
+
+            temps = self.wx.get_weather().get_temperature('celsius')
             temperature = '{:02}'.format(round(temps['temp']))
             if temps['temp'] < 0:
                 temperature = 'M{}'.format(temperature)
 
-            wx = 'WX {} {} {} {} {}/{} RH{} QFE{}'.format(
-                location.upper(), obtime, wv, cloud, temperature, dewpoint, humidity, pressure['press']
-            )
+            humidity = self.wx.get_weather().get_humidity()
 
+            dewpoint = self.wx.get_weather().get_dewpoint() or self.dewpoint(temps['temp'], humidity)
+
+            pressure = self.wx.get_weather().get_pressure()
+
+            qfe = 'QNH{}'.format(pressure['press']) or None
+            qnh = 'Q{}'.format(pressure['sea_level']) or None
+
+            wx = ['WX']
+            for item in [location.upper(), obtime, wv, cloud, temperature, dewpoint, humidity, qnh, qfe]:
+                if item is not None:
+                    wx.append(item)
+
+            wx = ' '.join(wx)
             self.scroll_text(wx, scroll_interval)
 
     @staticmethod
