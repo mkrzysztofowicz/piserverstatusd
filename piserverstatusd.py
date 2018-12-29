@@ -220,16 +220,16 @@ class StatusDaemon(Daemon):
                 self.wx = observations[0]
                 self.wx_acquisition_ts = now.timestamp()
 
-    def scroll_netinfo(self, interfaces, scroll_interval=0.1):
+    def scroll_netinfo(self, interfaces, scroll_interval=0.1, repeat=1):
         sysinfo = list()
         for interface in interfaces:
             sysinfo.append('{}:{}'.format(interface[0].upper(), self.get_ip(interface)))
-        self.scroll_text(sysinfo, scroll_interval)
+        self.scroll_text(sysinfo, scroll_interval, repeat)
 
-    def scroll_cpuload(self, scroll_interval=0.1):
+    def scroll_cpuload(self, scroll_interval=0.1, repeat=1):
         loadavg = os.getloadavg()
         loadavg = 'L:{}/{}/{}'.format(loadavg[0], loadavg[1], loadavg[2])
-        self.scroll_text(loadavg, scroll_interval)
+        self.scroll_text(loadavg, scroll_interval, repeat)
 
     def scroll_time(self, duration=15, scroll_interval=0.1):
         scrollphat.clear()
@@ -238,7 +238,7 @@ class StatusDaemon(Daemon):
             scrollphat.scroll()
             time.sleep(scroll_interval)
 
-    def scroll_weather(self, scroll_interval=0.1):
+    def scroll_weather(self, scroll_interval=0.1, repeat=1):
         if not self.owm:
             return
 
@@ -297,12 +297,15 @@ class StatusDaemon(Daemon):
                 if item is not None:
                     wx.append(item)
 
-            wx = ' '.join(wx)
-            self.logger.info(wx)
-            self.scroll_text(wx, scroll_interval)
+            wx.append('=')
+
+            if len(wx) > 3:
+                wx = ' '.join(wx)
+                self.logger.info(wx)
+                self.scroll_text(wx, scroll_interval, repeat)
 
     @staticmethod
-    def scroll_text(text, scroll_interval=0.1):
+    def scroll_text(text, scroll_interval=0.1, repeat=1):
 
         if not len(text):
             return
@@ -310,11 +313,13 @@ class StatusDaemon(Daemon):
         if type(text) == list:
             text = ' | '.join(text)
 
-        scrollphat.clear()
-        scrollphat.write_string(text, 11)
-        for i in range(0, scrollphat.buffer_len()):
-            scrollphat.scroll()
-            time.sleep(scroll_interval)
+        while repeat > 0:
+            repeat -= 1
+            scrollphat.clear()
+            scrollphat.write_string(text, 11)
+            for i in range(0, scrollphat.buffer_len()):
+                scrollphat.scroll()
+                time.sleep(scroll_interval)
 
     @staticmethod
     def scroll_cpugraph(duration=15, scroll_interval=0.2):
@@ -339,7 +344,7 @@ class StatusDaemon(Daemon):
         while True:
             try:
                 if self.configuration.getboolean('scrollphat', 'display_time', fallback=False):
-                    self.scroll_time()
+                    self.scroll_time(duration=10)
 
                 if self.configuration.getboolean('scrollphat', 'display_network', fallback=False):
                     if divmod(loop_runs, 10)[1] == 0:
@@ -353,7 +358,7 @@ class StatusDaemon(Daemon):
                     self.scroll_cpugraph()
 
                 if self.configuration.getboolean('scrollphat', 'display_weather', fallback=False):
-                    self.scroll_weather(scroll_interval=0.15)
+                    self.scroll_weather(scroll_interval=0.15, repeat=2)
 
                 loop_runs += 1
 
