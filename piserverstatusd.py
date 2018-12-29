@@ -258,7 +258,7 @@ class StatusDaemon(Daemon):
                     self.scroll_cpugraph()
 
                 if self.configuration.getboolean('scrollphat', 'display_weather', fallback=False):
-                    self.scroll_weather()
+                    self.scroll_weather(scroll_interval=0.2)
 
             except KeyboardInterrupt:
                 self.logger.info('Exiting')
