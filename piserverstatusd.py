@@ -234,9 +234,12 @@ class StatusDaemon(Daemon):
     def scroll_time(self, scroll_interval=0.1, repeat=4):
         scrollphat.clear()
         while repeat > 0:
+            current_time = self.get_time()
+            scrollphat.write_string(current_time, 11)
             repeat -= 1
-            for _ in range(len('XX:XX:XX')):
-                scrollphat.write_string(self.get_time(), 4)
+            for _ in range(scrollphat.buffer_len()):
+                current_time = self.get_time()
+                scrollphat.write_string(current_time, 11)
                 scrollphat.scroll()
                 time.sleep(scroll_interval)
 
@@ -255,7 +258,20 @@ class StatusDaemon(Daemon):
             obtime = datetime.fromtimestamp(obtime).strftime('%d%H%M')
 
             wind = self.wx.get_weather().get_wind()
-            wv = '{:03}{:02}'.format(int(wind['deg']), int(self.mps_to_kt(wind['speed'])))
+            wind_dir = wind.get('deg')
+            wind_speed = wind.get('speed')
+
+            if not wind_dir:
+                wind_dir = 'VRB'
+            else:
+                wind_dir = '{:03}'.format(wind_dir)
+
+            if not wind_speed:
+                wind_speed = '00'
+            else:
+                wind_speed = '{:02}'.format(int(self.mps_to_kt(wind_speed)))
+
+            wv = '{}{}'.format(wind_dir, wind_speed)
 
             visibility = self.wx.get_weather().get_visibility_distance()
 
@@ -299,10 +315,8 @@ class StatusDaemon(Daemon):
                 if item is not None:
                     wx.append(item)
 
-            wx.append('=')
-
-            if len(wx) > 3:
-                wx = ' '.join(wx)
+            if len(wx) > 2:
+                wx = ' '.join(wx) + '='
                 self.logger.info(wx)
                 self.scroll_text(wx, scroll_interval, repeat)
 
