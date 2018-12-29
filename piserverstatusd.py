@@ -231,12 +231,14 @@ class StatusDaemon(Daemon):
         loadavg = 'L:{}/{}/{}'.format(loadavg[0], loadavg[1], loadavg[2])
         self.scroll_text(loadavg, scroll_interval, repeat)
 
-    def scroll_time(self, duration=15, scroll_interval=0.1):
+    def scroll_time(self, scroll_interval=0.1, repeat=4):
         scrollphat.clear()
-        for _ in range(int(duration / scroll_interval)):
-            scrollphat.write_string(self.get_time(), 4)
-            scrollphat.scroll()
-            time.sleep(scroll_interval)
+        while repeat > 0:
+            repeat -= 1
+            for _ in range(len('XX:XX:XX')):
+                scrollphat.write_string(self.get_time(), 4)
+                scrollphat.scroll()
+                time.sleep(scroll_interval)
 
     def scroll_weather(self, scroll_interval=0.1, repeat=1):
         if not self.owm:
@@ -344,7 +346,7 @@ class StatusDaemon(Daemon):
         while True:
             try:
                 if self.configuration.getboolean('scrollphat', 'display_time', fallback=False):
-                    self.scroll_time(duration=10)
+                    self.scroll_time(repeat=2)
 
                 if self.configuration.getboolean('scrollphat', 'display_network', fallback=False):
                     if divmod(loop_runs, 10)[1] == 0:
