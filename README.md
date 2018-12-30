@@ -64,3 +64,7 @@ To install `pydaemon`, do the following:
     $ sudo systemctl enable piserverstatusd
     $ sudo systemctl start piserverstatusd
     ``` 
+
+## Example look
+
+![PiServerStatusd](images/piserverstatusd.jpg)
