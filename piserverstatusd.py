@@ -120,29 +120,39 @@ class StatusDaemon(Daemon):
 
         self.configuration.read(self.config_file)
 
-        if self.configuration.has_section('main'):
-            if not self.username:
-                if 'username' in self.configuration['main']:
-                    self.username = self.configuration.get('main', 'username')
+        self.reconfigure_logging()
 
-            loglevel = self.configuration.get('main', 'loglevel', fallback='INFO')
-            loglevel = getattr(logging, loglevel.upper())
-            formatter = logging.Formatter('%(levelname)s %(module)s: %(funcName)s(): %(message)s')
-            syslog = logging.handlers.SysLogHandler()
-            syslog.setLevel(loglevel)
-            syslog.setFormatter(formatter)
-            self.logger.addHandler(syslog)
-            self.logger.setLevel(loglevel)
-
-        if self.configuration.has_section('scrollphat'):
-            self.scrollphat_brightness = int(self.configuration.get('scrollphat',
-                                                                    'brightness',
-                                                                    fallback=self.DEFAULT_BRIGHTNESS))
+        self.username = self.configuration.get('main', 'username', fallback=None)
+        self.scrollphat_brightness = self.configuration.getint('scrollphat',
+                                                               'brightness',
+                                                               fallback=self.DEFAULT_BRIGHTNESS)
 
         owm_api_key = self.configuration.get('weather', 'openweathermap_api_key', fallback=None)
         if owm_api_key:
             owm_api_key = owm_api_key.strip("'")
             self.owm = pyowm.OWM(API_key=owm_api_key)
+
+    def reconfigure_logging(self):
+        loglevel = self.configuration.get('main', 'loglevel', fallback='INFO')
+        loglevel = getattr(logging, loglevel.upper())
+
+        for handler in self.logger.handlers:
+            self.logger.removeHandler(handler)
+
+        console_formatter = logging.Formatter(
+            '%(asctime)s %(name)s[%(process)s]: [%(levelname)s] %(lineno)s:%(funcName)s(): %(message)s'
+        )
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(console_formatter)
+        self.logger.addHandler(console_handler)
+
+        syslog_formatter = logging.Formatter('%(levelname)s %(module)s: %(lineno)s:%(funcName)s(): %(message)s')
+        syslog = logging.handlers.SysLogHandler()
+        syslog.setLevel(loglevel)
+        syslog.setFormatter(syslog_formatter)
+        self.logger.addHandler(syslog)
+        self.logger.setLevel(loglevel)
 
     #
     # Daemon Termination methods
@@ -163,11 +173,11 @@ class StatusDaemon(Daemon):
     # Helper methods for information display
     #
 
-    @staticmethod
-    def get_ip(ifname):
+    def get_ip(self, ifname):
         ifname = ifname[:15].encode('utf-8')
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        return socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', ifname))[20:24])
+        ipaddr = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', ifname))[20:24])
+        self.logger.debug('IP address: {}:{}'.format(ifname, ipaddr))
 
     @staticmethod
     def get_ipv6(ifname):
@@ -207,7 +217,9 @@ class StatusDaemon(Daemon):
 
     def get_weather(self, latitude, longitude):
         now = datetime.now()
-        if now.minute == 1 or now.minute == 31 or now.timestamp() - self.wx_acquisition_ts > self.wx_refresh_interval:
+        if self.wx is None or \
+                (now.minute == 1 or now.minute == 31 and
+                 now.timestamp() - self.wx_acquisition_ts > self.wx_refresh_interval):
             self.logger.info('Getting new weather for: {}, {}'.format(latitude, longitude))
             observations = None
 
@@ -245,6 +257,7 @@ class StatusDaemon(Daemon):
 
     def scroll_weather(self, scroll_interval=0.1, repeat=1):
         if not self.owm:
+            self.logger.warn('Error establishing connection to OpenWeatherMap')
             return
 
         lat = self.configuration.getfloat('weather', 'latitude', fallback=None)
@@ -252,6 +265,10 @@ class StatusDaemon(Daemon):
 
         if lat is not None and lon is not None:
             self.get_weather(lat, lon)
+            if not self.wx:
+                self.logger.warn('Failed to download weather')
+                return
+
             location = self.wx.get_location().get_name()
 
             obtime = self.wx.get_weather().get_reference_time()
@@ -320,8 +337,7 @@ class StatusDaemon(Daemon):
                 self.logger.info(wx)
                 self.scroll_text(wx, scroll_interval, repeat)
 
-    @staticmethod
-    def scroll_text(text, scroll_interval=0.1, repeat=1):
+    def scroll_text(self, text, scroll_interval=0.1, repeat=1):
 
         if not len(text):
             return
@@ -329,6 +345,7 @@ class StatusDaemon(Daemon):
         if type(text) == list:
             text = ' | '.join(text)
 
+        self.logger.debug('Scrolling: {}'.format(text))
         while repeat > 0:
             repeat -= 1
             scrollphat.clear()
