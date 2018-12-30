@@ -3,7 +3,7 @@
 """
 PiServerStatus Daemon
 
-This program displays raspberry pi statistics on the Scroll pHAT which needs to be attached to the pi.
+Display raspberry pi statistics (IP addresses, CPU load), weather, time, on the Scroll pHAT attached to the pi.
 """
 
 import argparse
