@@ -218,7 +218,7 @@ class StatusDaemon(Daemon):
     def get_weather(self, latitude, longitude):
         now = datetime.now()
         if self.wx is None or \
-                (now.minute == 1 or now.minute == 31 and
+                ((0 < now.minute < 3 or 30 < now.minute < 33) and
                  now.timestamp() - self.wx_acquisition_ts > self.wx_refresh_interval):
             self.logger.info('Getting new weather for: {}, {}'.format(latitude, longitude))
             observations = None
@@ -228,9 +228,10 @@ class StatusDaemon(Daemon):
             except Exception as e:
                 self.logger.exception('Error getting weather: {}: {}'.format(type(e).__name__,
                                                                              str(e)))
-            if len(observations):
-                self.wx = observations[0]
-                self.wx_acquisition_ts = now.timestamp()
+            else:
+                if len(observations):
+                    self.wx = observations[0]
+                    self.wx_acquisition_ts = now.timestamp()
 
     def scroll_netinfo(self, interfaces, scroll_interval=0.1, repeat=1):
         sysinfo = list()
