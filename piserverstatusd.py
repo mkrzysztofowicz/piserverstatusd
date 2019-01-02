@@ -23,6 +23,9 @@ import scrollphat
 
 from pydaemon import Daemon
 
+#
+# List of possible weather phenomena codes returned by OpenWeatherMap
+#
 wxcodes = {
     200: 'TS -RA',
     201: 'TSRA',
@@ -89,6 +92,7 @@ wxcodes = {
 class StatusDaemon(Daemon):
 
     DEFAULT_BRIGHTNESS = 10
+    DEFAULT_WX_INTERVAL = 300
 
     #
     # Daemon Initialisation methods
@@ -103,11 +107,14 @@ class StatusDaemon(Daemon):
         self.owm = None
         self.wx = None
         self.wx_acquisition_ts = 0
-        self.wx_refresh_interval = 300
+        self.wx_refresh_interval = self.DEFAULT_WX_INTERVAL
 
         super().__init__(pidfile, config_file, stdin, stdout, stderr, daemon_name='piserverstatusd')
 
     def configure(self):
+        """
+        Configures the daemon based on the content of the configuration file
+        """
         self.configuration = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 
         if not self.config_file:
@@ -133,6 +140,11 @@ class StatusDaemon(Daemon):
             self.owm = pyowm.OWM(API_key=owm_api_key)
 
     def reconfigure_logging(self):
+        """
+        The Daemon class initially configures its own logger, however often this configuration can be improved upon
+        using the details from the configuration file - this is used to reconfigure the logging completely
+        """
+
         loglevel = self.configuration.get('main', 'loglevel', fallback='INFO')
         loglevel = getattr(logging, loglevel.upper())
 
@@ -159,6 +171,9 @@ class StatusDaemon(Daemon):
     #
 
     def stop(self, silent=False):
+        """
+        Executed on daemon shutdown - will turn off the Scroll pHAT
+        """
         scrollphat.clear()
         super().stop(silent)
 
@@ -174,6 +189,12 @@ class StatusDaemon(Daemon):
     #
 
     def get_ip(self, ifname):
+        """
+        Get the IPv4 address configured on an interface
+        :param str ifname: interface name
+        :return str: IP address configured on an interface
+        """
+
         ifname = ifname[:15].encode('utf-8')
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         ipaddr = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', ifname))[20:24])
@@ -185,10 +206,21 @@ class StatusDaemon(Daemon):
 
     @staticmethod
     def mps_to_kt(mps):
+        """
+        Converts speed in m/s to knots
+        :param float mps: speed in m/s
+        :return int: knots
+        """
         return int(mps * 1852 / 3600)
 
     @staticmethod
     def cloud(percentage):
+        """
+        Converts cloud cover percentage to METAR codes: FEW, SCT, BKN, OVC
+        :param int percentage: cloud cover as percentage
+        :return str: METAR code for the cloud cover
+        """
+
         if percentage == 0:
             return ''
         elif 0 < percentage <= 25:
@@ -202,7 +234,13 @@ class StatusDaemon(Daemon):
 
     @staticmethod
     def dewpoint(temperature, humidity):
-        # calculate dewpoint using Magnus Formula
+        """
+        Calculate dewpoint temperature using Magnus Formula
+        :param float temperature: outside air temperature in degrees Celsius
+        :param float humidity: relative humidity as percentage
+        :return str: dewpoint temperature in degrees Celsius. If negative, prefixed with 'M'
+        """
+
         dp = ((humidity / 100) ** 0.125) * (112 / 0.9 * temperature) / (0.1 + temperature) - 112
         if dp < 0:
             dp = 'M{:02}'.format(round(dp))
@@ -212,14 +250,23 @@ class StatusDaemon(Daemon):
 
     @staticmethod
     def get_time():
+        """
+        Return current time in the hh:mm:ss format
+        :return str: current time as hh:mm:ss
+        """
         now = datetime.now()
         return now.strftime('%H:%M:%S')
 
     def get_weather(self, latitude, longitude):
+        """
+        Get current weather for given coordinates from OpenWeatherMap
+        The weather observation will be saved in self.wx property for access by other methods
+
+        :param float latitude: GPS latitude
+        :param float longitude: GPS longitude
+        """
         now = datetime.now()
-        if self.wx is None or \
-                ((0 < now.minute < 3 or 30 < now.minute < 33) and
-                 now.timestamp() - self.wx_acquisition_ts > self.wx_refresh_interval):
+        if now.timestamp() - self.wx_acquisition_ts > self.wx_refresh_interval:
             self.logger.info('Getting new weather for: {}, {}'.format(latitude, longitude))
             observations = None
 
@@ -233,30 +280,13 @@ class StatusDaemon(Daemon):
                     self.wx = observations[0]
                     self.wx_acquisition_ts = now.timestamp()
 
-    def scroll_netinfo(self, interfaces, scroll_interval=0.1, repeat=1):
-        sysinfo = list()
-        for interface in interfaces:
-            sysinfo.append('{}:{}'.format(interface[0].upper(), self.get_ip(interface)))
-        self.scroll_text(sysinfo, scroll_interval, repeat)
+    def generate_metar(self):
+        """
+        Generate METAR code from the latest weather observation in self.wx
 
-    def scroll_cpuload(self, scroll_interval=0.1, repeat=1):
-        loadavg = os.getloadavg()
-        loadavg = 'L:{}/{}/{}'.format(loadavg[0], loadavg[1], loadavg[2])
-        self.scroll_text(loadavg, scroll_interval, repeat)
+        :return str: METAR code
+        """
 
-    def scroll_time(self, scroll_interval=0.1, repeat=4):
-        scrollphat.clear()
-        while repeat > 0:
-            current_time = self.get_time()
-            scrollphat.write_string(current_time, 11)
-            repeat -= 1
-            for _ in range(scrollphat.buffer_len()):
-                current_time = self.get_time()
-                scrollphat.write_string(current_time, 11)
-                scrollphat.scroll()
-                time.sleep(scroll_interval)
-
-    def scroll_weather(self, scroll_interval=0.1, repeat=1):
         if not self.owm:
             self.logger.warn('Error establishing connection to OpenWeatherMap')
             return
@@ -268,7 +298,7 @@ class StatusDaemon(Daemon):
             self.get_weather(lat, lon)
             if not self.wx:
                 self.logger.warn('Failed to download weather')
-                return
+                return ''
 
             location = self.wx.get_location().get_name()
 
@@ -328,17 +358,79 @@ class StatusDaemon(Daemon):
             if pressure['sea_level']:
                 qnh = 'Q{}'.format(pressure['sea_level'])
 
-            wx = ['WX']
+            wx = ['PsMETAR']
             for item in [location.upper(), obtime, wv, visibility, weather, cloud, t_dp, rh, qnh, qfe]:
                 if item is not None:
                     wx.append(item)
 
-            if len(wx) > 2:
-                wx = ' '.join(wx) + '='
-                self.logger.info(wx)
-                self.scroll_text(wx, scroll_interval, repeat)
+            wx = ' '.join(wx) + '='
+            self.logger.info(wx)
+
+            return wx
+
+    #
+    # Methods for displaying the information on the Scroll pHAT
+    #
+
+    def scroll_netinfo(self, interfaces, scroll_interval=0.1, repeat=1):
+        """
+        Display Network Information on the Scroll pHAT
+        :param list interfaces: a list of interfaces for which to display their IPv4 configuration
+        :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
+        :param int repeat: how many times to repeat a given information in the display cycle
+        """
+
+        sysinfo = list()
+        for interface in interfaces:
+            sysinfo.append('{}:{}'.format(interface[0].upper(), self.get_ip(interface)))
+        self.scroll_text(sysinfo, scroll_interval, repeat)
+
+    def scroll_cpuload(self, scroll_interval=0.1, repeat=1):
+        """
+        Display CPU load on the Scroll pHAT
+        :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
+        :param int repeat: how many times to repeat a given information in the display cycle
+        """
+
+        loadavg = os.getloadavg()
+        loadavg = 'L:{}/{}/{}'.format(loadavg[0], loadavg[1], loadavg[2])
+        self.scroll_text(loadavg, scroll_interval, repeat)
+
+    def scroll_time(self, scroll_interval=0.1, repeat=4):
+        """
+        Display current time on the Scroll pHAT
+        :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
+        :param int repeat: how many times to repeat a given information in the display cycle
+        """
+
+        scrollphat.clear()
+        while repeat > 0:
+            current_time = self.get_time()
+            scrollphat.write_string(current_time, 11)
+            repeat -= 1
+            for _ in range(scrollphat.buffer_len()):
+                current_time = self.get_time()
+                scrollphat.write_string(current_time, 11)
+                scrollphat.scroll()
+                time.sleep(scroll_interval)
+
+    def scroll_weather(self, scroll_interval=0.1, repeat=1):
+        """
+        Display current weather on the Scroll pHAT
+        :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
+        :param int repeat: how many times to repeat a given information in the display cycle
+        """
+
+        wx = self.generate_metar()
+        self.scroll_text(wx, scroll_interval, repeat)
 
     def scroll_text(self, text, scroll_interval=0.1, repeat=1):
+        """
+        Display arbitrary text on the Scroll pHAT
+        :param str text: text message to display
+        :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
+        :param int repeat: how many times to repeat a given information in the display cycle
+        """
 
         if not len(text):
             return
@@ -357,6 +449,12 @@ class StatusDaemon(Daemon):
 
     @staticmethod
     def scroll_cpugraph(duration=15, scroll_interval=0.2):
+        """
+        Plot the CPU load on the Scroll pHAT (graphically)
+        :param int duration: how long to keep scrolling the CPU load graph for
+        :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
+        """
+
         scrollphat.clear()
         cpu_graph_values = [0] * 11
         for _ in range(int(duration / scroll_interval)):
@@ -370,6 +468,10 @@ class StatusDaemon(Daemon):
     #
 
     def run(self):
+        """
+        Main program run loop
+        """
+
         scrollphat.set_brightness(self.scrollphat_brightness)
         rotate = self.configuration.getboolean('scrollphat', 'flip', fallback=False)
         scrollphat.set_rotate(rotate)
