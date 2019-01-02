@@ -12,6 +12,7 @@ from datetime import datetime
 import fcntl
 import logging
 import logging.handlers
+import math
 import os
 import socket
 import struct
@@ -149,21 +150,20 @@ class StatusDaemon(Daemon):
         loglevel = getattr(logging, loglevel.upper())
 
         for handler in self.logger.handlers:
-            self.logger.removeHandler(handler)
+            if isinstance(handler, logging.StreamHandler):
+                formatter = logging.Formatter(
+                    '%(asctime)s %(name)s[%(process)s]: [%(levelname)s] %(lineno)s:%(funcName)s(): %(message)s'
+                )
+                handler.setLevel(loglevel)
+                handler.setFormatter(formatter)
 
-        console_formatter = logging.Formatter(
-            '%(asctime)s %(name)s[%(process)s]: [%(levelname)s] %(lineno)s:%(funcName)s(): %(message)s'
-        )
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(console_formatter)
-        self.logger.addHandler(console_handler)
+            elif isinstance(handler, logging.handlers.SysLogHandler):
 
-        syslog_formatter = logging.Formatter('%(levelname)s %(module)s: %(lineno)s:%(funcName)s(): %(message)s')
-        syslog = logging.handlers.SysLogHandler()
-        syslog.setLevel(loglevel)
-        syslog.setFormatter(syslog_formatter)
-        self.logger.addHandler(syslog)
+                formatter = logging.Formatter('%(levelname)s %(module)s: %(lineno)s:%(funcName)s(): %(message)s')
+                handler.facility = 'daemon'
+                handler.setLevel(loglevel)
+                handler.setFormatter(formatter)
+
         self.logger.setLevel(loglevel)
 
     #
@@ -198,7 +198,8 @@ class StatusDaemon(Daemon):
         ifname = ifname[:15].encode('utf-8')
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         ipaddr = socket.inet_ntoa(fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', ifname))[20:24])
-        self.logger.debug('IP address: {}:{}'.format(ifname, ipaddr))
+        self.logger.debug('IP address: {}:{}'.format(str(ifname), ipaddr))
+        return ipaddr
 
     @staticmethod
     def get_ipv6(ifname):
@@ -235,13 +236,33 @@ class StatusDaemon(Daemon):
     @staticmethod
     def dewpoint(temperature, humidity):
         """
-        Calculate dewpoint temperature using Magnus Formula
+        Calculate dewpoint temperature using methodology from Vaisala document:
+        https://www.vaisala.com/sites/default/files/documents/Humidity_Conversion_Formulas_B210973EN-F.pdf
+
+        This uses the simpler formula (6), as well as constants suitable for temperature range -20°C...+50°C
+
         :param float temperature: outside air temperature in degrees Celsius
         :param float humidity: relative humidity as percentage
-        :return str: dewpoint temperature in degrees Celsius. If negative, prefixed with 'M'
+        :return float: dewpoint temperature in degrees Celsius
         """
 
-        dp = ((humidity / 100) ** 0.125) * (112 / 0.9 * temperature) / (0.1 + temperature) - 112
+        A = 6.116441
+        m = 7.591386
+        Tn = 240.7263
+        Pws = A * pow(10, (m * temperature / (temperature + Tn)))
+        Pw = Pws * humidity / 100.0
+
+        Td = Tn / (m / math.log10(Pw / A) - 1)
+        return Td
+
+    def metar_dewpoint(self, temperature, humidity):
+        """
+        Return METAR encoded dewpoint temperature, calculated based on outside air temperature and relative humidity
+        :param float temperature: OAT
+        :param float humidity: RH
+        :return str: metar encoded dewpoint temperature
+        """
+        dp = self.dewpoint(temperature, humidity)
         if dp < 0:
             dp = 'M{:02}'.format(round(dp))
         else:
@@ -279,6 +300,7 @@ class StatusDaemon(Daemon):
                 if len(observations):
                     self.wx = observations[0]
                     self.wx_acquisition_ts = now.timestamp()
+                    self.logger.debug('Weather: {}'.format(self.wx.get_weather().to_JSON()))
 
     def generate_metar(self):
         """
@@ -343,7 +365,7 @@ class StatusDaemon(Daemon):
 
             humidity = self.wx.get_weather().get_humidity()
 
-            dewpoint = self.wx.get_weather().get_dewpoint() or self.dewpoint(temps['temp'], humidity)
+            dewpoint = self.wx.get_weather().get_dewpoint() or self.metar_dewpoint(temps['temp'], humidity)
 
             rh = 'RH{}'.format(humidity)
             t_dp = '{}/{}'.format(temperature, dewpoint)
