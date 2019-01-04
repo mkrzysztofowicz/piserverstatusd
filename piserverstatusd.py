@@ -302,7 +302,11 @@ class StatusDaemon(Daemon):
         wind_speed = wind.get('speed')
         wind_gust = wind.get('gust')
 
-        wind_dir = '{:03}'.format(wind_dir) if wind_dir else '000'
+        if not wind_dir or self.mps_to_kt(wind_speed) < 2:
+            wind_dir = '000'
+        else:
+            wind_dir = '{:03}'.format(wind_dir)
+
         wind_speed = '{:02}'.format(int(self.mps_to_kt(wind_speed))) if wind_speed is not None else '00'
         wind_gust = 'G{:02}'.format(int(self.mps_to_kt(wind_gust))) if wind_gust else ''
 
