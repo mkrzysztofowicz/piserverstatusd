@@ -19,13 +19,17 @@ For more information, check https://shop.pimoroni.com.
 The `psutil` and `pyowm` are published on https://pypi.org/, therefore the installation
 of these two modules is as straightforward as:
 
-`$ sudo pip3 install psutil pyowm`
+    ```bash
+    $ sudo pip3 install psutil pyowm
+    ```
 
 To install `pydaemon`, do the following:
 
 1. Clone the repository: https://github.com/mkrzysztofowicz/pydaemon.git
 
-    `$ git clone https://github.com/mkrzysztofowicz/pydaemon.git`
+    ```bash
+    $ git clone https://github.com/mkrzysztofowicz/pydaemon.git`
+    ```
 
 2. Install the module
 
@@ -39,7 +43,9 @@ To install `pydaemon`, do the following:
 
 1. Clone the repository
 
-    `$ git clone https://github.com/mkrzysztofowicz/piserverstatusd.git`
+    ```bash
+    $ git clone https://github.com/mkrzysztofowicz/piserverstatusd.git`
+    ```
     
 2. Install files to their locations
 
