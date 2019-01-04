@@ -429,7 +429,7 @@ class StatusDaemon(Daemon):
 
             wx = ['PsMETAR']
             for item in [location.upper(), obtime, wv, visibility, weather, cloud, t_dp, rh, pressure]:
-                if item is not None:
+                if item:
                     wx.append(item)
 
             wx = ' '.join(wx) + '='
