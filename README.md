@@ -28,7 +28,7 @@ To install `pydaemon`, do the following:
 1. Clone the repository: https://github.com/mkrzysztofowicz/pydaemon.git
 
     ```bash
-    $ git clone https://github.com/mkrzysztofowicz/pydaemon.git`
+    $ git clone https://github.com/mkrzysztofowicz/pydaemon.git
     ```
 
 2. Install the module
