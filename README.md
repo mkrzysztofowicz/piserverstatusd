@@ -19,9 +19,9 @@ For more information, check https://shop.pimoroni.com.
 The `psutil` and `pyowm` are published on https://pypi.org/, therefore the installation
 of these two modules is as straightforward as:
 
-    ```bash
-    $ sudo pip3 install psutil pyowm
-    ```
+```bash
+$ sudo pip3 install psutil pyowm
+```
 
 To install `pydaemon`, do the following:
 
