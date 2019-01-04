@@ -68,5 +68,5 @@ To install `pydaemon`, do the following:
 ## How does it look like
 
 ![PiServerStatusd](images/piserverstatusd.jpg)
-![Pseudo METAR display](https://static.frozen-geek.net/video/piserverstatusd/psmetar.gif)
-![Time, CPU Load, Network Config](https://static.frozen-geek.net/video/piserverstatusd/time-net-cpu.gif)
+![Pseudo METAR display](https://static.frozen-geek.net/video/piserverstatusd/psmetar_small.gif)
+![Time, CPU Load, Network Config](https://static.frozen-geek.net/video/piserverstatusd/time-net-cpu_small.gif)
