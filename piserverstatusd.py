@@ -222,7 +222,7 @@ class StatusDaemon(Daemon):
         :param float mps: speed in m/s
         :return int: knots
         """
-        return int(mps * 1852 / 3600)
+        return mps * 1852 / 3600
 
     @staticmethod
     def cloud(percentage):
@@ -324,15 +324,37 @@ class StatusDaemon(Daemon):
 
         result = ['', '']
 
-        if pressure['press']:
-            result[0] = 'QFE{}'.format(pressure['press'])
-
         if pressure['sea_level']:
-            result[1] = 'Q{}'.format(pressure['sea_level'])
+            result[0] = 'Q{:04}'.format(pressure['sea_level'])
 
-        pressure = ' '.join(result)
+        if pressure['press']:
+            result[1] = 'QFE{:04}'.format(pressure['press'])
+
+        pressure = ' '.join(result).strip()
         self.logger.debug('Pressure: {}'.format(pressure))
         return pressure
+
+    def metar_weather(self, wxcode):
+        """
+        Extract OpenWeatherMap weather codes and convert into METAR weather
+        :param int or list[int] wxcode: weather codes
+        :return str: METAR codes for weather phenomena
+        """
+
+        if type(wxcode) == list:
+            weather = list()
+            for item in wxcode:
+                if item != 800:
+                    weather.append(wxcodes[item])
+            weather = ' '.join(weather).strip()
+
+        else:
+            weather = ''
+            if wxcode < 800:
+                weather = wxcodes[wxcode]
+
+        self.logger.debug('Weather phenomena: {}'.format(weather))
+        return weather
 
     def get_weather(self, latitude, longitude):
         """
@@ -389,20 +411,11 @@ class StatusDaemon(Daemon):
             visibility = self.wx.get_weather().get_visibility_distance()
 
             wxcode = self.wx.get_weather().get_weather_code()
-            if type(wxcode) == list:
-                weather = list()
-                for item in wxcode:
-                    if item > 800:
-                        weather.append(wxcodes[item])
-            else:
-                weather = None
-                if wxcode < 800:
-                    weather = wxcodes[wxcode]
+            weather = self.metar_weather(wxcode)
 
             cloud = self.cloud(self.wx.get_weather().get_clouds())
 
             temps = self.wx.get_weather().get_temperature('celsius')
-
             temperature = self.metar_temperature(temps['temp'])
 
             humidity = self.wx.get_weather().get_humidity()
@@ -483,7 +496,7 @@ class StatusDaemon(Daemon):
     def scroll_text(self, text, scroll_interval=0.1, repeat=1):
         """
         Display arbitrary text on the Scroll pHAT
-        :param str text: text message to display
+        :param str or list[str] text: text message to display
         :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
         :param int repeat: how many times to repeat a given information in the display cycle
         """
