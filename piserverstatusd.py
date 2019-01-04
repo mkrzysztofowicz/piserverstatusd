@@ -26,67 +26,68 @@ from pydaemon import Daemon
 
 #
 # List of possible weather phenomena codes returned by OpenWeatherMap
+# https://openweathermap.org/weather-conditions
 #
 wxcodes = {
-    200: 'TS -RA',
-    201: 'TSRA',
-    202: 'TS +RA',
-    210: '-TS',
-    211: 'TS',
-    212: '+TS',
-    221: 'TS',
-    230: 'TS -DZ',
-    231: 'TSDZ',
-    232: 'TS +DZ',
+    200: 'TS -RA',  # thunderstorm, light rain
+    201: 'TSRA',    # thunderstorm, rain
+    202: 'TS +RA',  # thunderstorm, heavy rain
+    210: '-TS',     # light thunderstorm
+    211: 'TS',      # thunderstorm
+    212: '+TS',     # heavy thunderstorm
+    221: 'TS',      # ragged thunderstorm
+    230: 'TS -DZ',  # thunderstorm, light drizzle
+    231: 'TSDZ',    # thunderstorm, drizzle
+    232: 'TS +DZ',  # thunderstorm, heavy drizzle
 
-    300: '-DZ',
-    301: 'DZ',
-    302: '+DZ',
-    310: '-DZRA',
-    311: 'DZRA',
-    312: '+DZRA',
-    313: 'SHRADZ',
-    314: '+SHRADZ',
-    321: 'SHDZ',
+    300: '-DZ',     # light drizzle
+    301: 'DZ',      # drizzle
+    302: '+DZ',     # heavy drizzle
+    310: '-DZRA',   # light drizzle, rain
+    311: 'DZRA',    # drizzle, rain
+    312: '+DZRA',   # heavy drizzle, rain
+    313: 'SHRADZ',  # rain showers, drizzle
+    314: '+SHRADZ', # heavy rain showers, drizzle
+    321: 'SHDZ',    # drizzle showers
 
-    500: '-RA',
-    501: 'RA',
-    502: '+RA',
-    503: '+RA',
-    504: '+RA',
-    511: 'FZRA',
-    520: '-SHRA',
-    521: 'SHRA',
-    522: '+SHRA',
-    531: 'SHRA',
+    500: '-RA',     # light rain
+    501: 'RA',      # rain
+    502: '+RA',     # heavy rain
+    503: '+RA',     # very heavy rain
+    504: '+RA',     # extreme rain
+    511: 'FZRA',    # freezing rain
+    520: '-SHRA',   # light rain showers
+    521: 'SHRA',    # rain showers
+    522: '+SHRA',   # heavy rain showers
+    531: 'SHRA',    # ragged rain showers
 
-    600: '-SN',
-    601: 'SN',
-    602: '+SN',
-    611: 'RASN',
-    612: 'SHRASN',
-    615: '-RASN',
-    616: 'RASN',
-    620: '-SHSN',
-    621: 'SHSN',
-    622: '+SHSN',
+    600: '-SN',     # light snow
+    601: 'SN',      # snow
+    602: '+SN',     # heavy snow
+    611: 'RASN',    # rain and snow (sleet)
+    612: 'SHRASN',  # rain and snow showers (sleet showers)
+    615: '-RASN',   # light rain and snow
+    616: 'RASN',    # rain and snow
+    620: '-SHSN',   # light snow showers
+    621: 'SHSN',    # snow showers
+    622: '+SHSN',   # heavy snow showers
 
-    701: 'BR',
-    711: 'FU',
-    721: 'HZ',
-    731: 'PO',  # sand or dust swirls
-    741: 'FG',
-    751: 'SA',  # sand
-    761: 'DU',  # widespread dust
-    762: 'VA',  # volcanic ash
-    771: 'SQ',  # squalls
-    781: 'FC',  # funnel cloud - tornado
+    701: 'BR',      # mist
+    711: 'FU',      # smoke (fumes)
+    721: 'HZ',      # haze
+    731: 'PO',      # sand or dust swirls
+    741: 'FG',      # fog
+    751: 'SA',      # sand
+    761: 'DU',      # widespread dust
+    762: 'VA',      # volcanic ash
+    771: 'SQ',      # squalls
+    781: 'FC',      # funnel cloud - tornado
 
-    800: 'SKC',
-    801: 'FEW',
-    802: 'SCT',
-    803: 'BKN',
-    804: 'OVC'
+    800: 'SKC',     # sky clear
+    801: 'FEW',     # 1-2 oktas of cloud
+    802: 'SCT',     # 3-4 oktas of cloud
+    803: 'BKN',     # 5-6 oktas of cloud
+    804: 'OVC'      # 7-8 oktas of cloud
 }
 
 
