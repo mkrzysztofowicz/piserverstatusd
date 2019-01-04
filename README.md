@@ -16,7 +16,7 @@ For more information, check https://shop.pimoroni.com.
 
 ### Installation or required modules
 
-The `psutil` and `pyowm` are published on ![](https://pypi.org/), therefore the installation
+The `psutil` and `pyowm` are published on https://pypi.org/, therefore the installation
 of these two modules is as straightforward as:
 
 `$ sudo pip3 install psutil pyowm`
