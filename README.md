@@ -65,6 +65,8 @@ To install `pydaemon`, do the following:
     $ sudo systemctl start piserverstatusd
     ``` 
 
-## Example look
+## How does it look like
 
 ![PiServerStatusd](images/piserverstatusd.jpg)
+![Pseudo METAR display](https://static.frozen-geek.net/video/piserverstatusd/psmetar.gif)
+![Time, CPU Load, Network Config](https://static.frozen-geek.net/video/piserverstatusd/time-net-cpu.gif)
