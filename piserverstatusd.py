@@ -203,7 +203,16 @@ class StatusDaemon(Daemon):
 
     @staticmethod
     def get_ipv6(ifname):
-        pass
+        raise NotImplemented
+
+    @staticmethod
+    def get_time():
+        """
+        Return current time in the hh:mm:ss format
+        :return str: current time as hh:mm:ss
+        """
+        now = datetime.now()
+        return now.strftime('%H:%M:%S')
 
     @staticmethod
     def mps_to_kt(mps):
@@ -263,20 +272,62 @@ class StatusDaemon(Daemon):
         :return str: metar encoded dewpoint temperature
         """
         dp = self.dewpoint(temperature, humidity)
-        if dp < 0:
-            dp = 'M{:02}'.format(round(dp))
-        else:
-            dp = '{:02}'.format(round(dp))
+        dp = self.metar_temperature(dp)
+        self.logger.debug('Dewpoint: {}'.format(dp))
         return dp
 
-    @staticmethod
-    def get_time():
+    def metar_temperature(self, temperature):
         """
-        Return current time in the hh:mm:ss format
-        :return str: current time as hh:mm:ss
+        Convert temperature to a METAR format: an integer number; if negative - prepend with 'M'
+        :param int or float temperature: temperature
+        :return str: temperature in METAR format
         """
-        now = datetime.now()
-        return now.strftime('%H:%M:%S')
+
+        sign = 'M' if temperature < 0 else ''
+        temperature = int(abs(round(temperature)))
+        temperature = '{}{:02}'.format(sign, temperature)
+        self.logger.debug('Temperature: {}'.format(temperature))
+        return temperature
+
+    def metar_wind(self, wind):
+        """
+        Extract the wind details from the wind dict as returned by pyowm get_wind()
+        Convert the values into a METAR string
+        :param dict wind: wind data as returned by pyowm get_wind()
+        :return str: METAR code for wind
+        """
+
+        wind_dir = wind.get('deg')
+        wind_speed = wind.get('speed')
+        wind_gust = wind.get('gust')
+
+        wind_dir = '{:03}'.format(wind_dir) if wind_dir else '000'
+        wind_speed = '{:02}'.format(int(self.mps_to_kt(wind_speed))) if wind_speed is not None else '00'
+        wind_gust = 'G{:02}'.format(int(self.mps_to_kt(wind_gust))) if wind_gust else ''
+
+        wv = '{}{}{}KT'.format(wind_dir, wind_speed, wind_gust)
+        self.logger.debug('Wind dir: {}'.format(wv))
+        return wv
+
+    def metar_pressure(self, pressure):
+        """
+        Extract sea-level and/or local pressure from pressure dict as returned by pyowm get_pressure()
+        Convert the data into a METAR code
+        :param dict pressure: pressure data as returned by pyowm get_pressure()
+        :return str: METAR code for pressure (QNH, QFE)
+        """
+
+        result = ['', '']
+
+        if pressure['press']:
+            result[0] = 'QFE{}'.format(pressure['press'])
+
+        if pressure['sea_level']:
+            result[1] = 'Q{}'.format(pressure['sea_level'])
+
+        pressure = ' '.join(result)
+        self.logger.debug('Pressure: {}'.format(pressure))
+        return pressure
 
     def get_weather(self, latitude, longitude):
         """
@@ -328,20 +379,7 @@ class StatusDaemon(Daemon):
             obtime = datetime.fromtimestamp(obtime).strftime('%d%H%M')
 
             wind = self.wx.get_weather().get_wind()
-            wind_dir = wind.get('deg')
-            wind_speed = wind.get('speed')
-
-            if not wind_dir:
-                wind_dir = 'VRB'
-            else:
-                wind_dir = '{:03}'.format(wind_dir)
-
-            if not wind_speed:
-                wind_speed = '00'
-            else:
-                wind_speed = '{:02}'.format(int(self.mps_to_kt(wind_speed)))
-
-            wv = '{}{}'.format(wind_dir, wind_speed)
+            wv = self.metar_wind(wind)
 
             visibility = self.wx.get_weather().get_visibility_distance()
 
@@ -359,29 +397,20 @@ class StatusDaemon(Daemon):
             cloud = self.cloud(self.wx.get_weather().get_clouds())
 
             temps = self.wx.get_weather().get_temperature('celsius')
-            temperature = '{:02}'.format(round(temps['temp']))
-            if temps['temp'] < 0:
-                temperature = 'M{}'.format(temperature)
+
+            temperature = self.metar_temperature(temps['temp'])
 
             humidity = self.wx.get_weather().get_humidity()
-
             dewpoint = self.wx.get_weather().get_dewpoint() or self.metar_dewpoint(temps['temp'], humidity)
 
             rh = 'RH{}'.format(humidity)
             t_dp = '{}/{}'.format(temperature, dewpoint)
 
             pressure = self.wx.get_weather().get_pressure()
-
-            qnh = None
-            qfe = None
-            if pressure['press']:
-                qfe = 'QFE{}'.format(pressure['press'])
-
-            if pressure['sea_level']:
-                qnh = 'Q{}'.format(pressure['sea_level'])
+            pressure = self.metar_pressure(pressure)
 
             wx = ['PsMETAR']
-            for item in [location.upper(), obtime, wv, visibility, weather, cloud, t_dp, rh, qnh, qfe]:
+            for item in [location.upper(), obtime, wv, visibility, weather, cloud, t_dp, rh, pressure]:
                 if item is not None:
                     wx.append(item)
 
