@@ -95,6 +95,8 @@ class StatusDaemon(Daemon):
 
     DEFAULT_BRIGHTNESS = 10
     DEFAULT_WX_INTERVAL = 300
+    DEFAULT_DISPLAY_COUNT = 1
+    DEFAULT_INTERVAL = 0.2
 
     #
     # Daemon Initialisation methods
@@ -441,64 +443,64 @@ class StatusDaemon(Daemon):
     # Methods for displaying the information on the Scroll pHAT
     #
 
-    def scroll_netinfo(self, interfaces, scroll_interval=0.1, repeat=1):
+    def scroll_netinfo(self, interfaces, scroll_interval=0.1, display_count=1):
         """
         Display Network Information on the Scroll pHAT
         :param list interfaces: a list of interfaces for which to display their IPv4 configuration
         :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
-        :param int repeat: how many times to repeat a given information in the display cycle
+        :param int display_count: how many times to repeat a given information in the display cycle
         """
 
         sysinfo = list()
         for interface in interfaces:
             sysinfo.append('{}:{}'.format(interface[0].upper(), self.get_ip(interface)))
-        self.scroll_text(sysinfo, scroll_interval, repeat)
+        self.scroll_text(sysinfo, scroll_interval, display_count)
 
-    def scroll_cpuload(self, scroll_interval=0.1, repeat=1):
+    def scroll_cpuload(self, scroll_interval=0.1, display_count=1):
         """
         Display CPU load on the Scroll pHAT
         :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
-        :param int repeat: how many times to repeat a given information in the display cycle
+        :param int display_count: how many times to repeat a given information in the display cycle
         """
 
         loadavg = os.getloadavg()
         loadavg = 'L:{}/{}/{}'.format(loadavg[0], loadavg[1], loadavg[2])
-        self.scroll_text(loadavg, scroll_interval, repeat)
+        self.scroll_text(loadavg, scroll_interval, display_count)
 
-    def scroll_time(self, scroll_interval=0.1, repeat=4):
+    def scroll_time(self, scroll_interval=0.1, display_count=4):
         """
         Display current time on the Scroll pHAT
         :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
-        :param int repeat: how many times to repeat a given information in the display cycle
+        :param int display_count: how many times to repeat a given information in the display cycle
         """
 
         scrollphat.clear()
-        while repeat > 0:
+        while display_count > 0:
             current_time = self.get_time()
             scrollphat.write_string(current_time, 11)
-            repeat -= 1
+            display_count -= 1
             for _ in range(scrollphat.buffer_len()):
                 current_time = self.get_time()
                 scrollphat.write_string(current_time, 11)
                 scrollphat.scroll()
                 time.sleep(scroll_interval)
 
-    def scroll_weather(self, scroll_interval=0.1, repeat=1):
+    def scroll_weather(self, scroll_interval=0.1, display_count=1):
         """
         Display current weather on the Scroll pHAT
         :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
-        :param int repeat: how many times to repeat a given information in the display cycle
+        :param int display_count: how many times to repeat a given information in the display cycle
         """
 
         wx = self.generate_metar()
-        self.scroll_text(wx, scroll_interval, repeat)
+        self.scroll_text(wx, scroll_interval, display_count)
 
-    def scroll_text(self, text, scroll_interval=0.1, repeat=1):
+    def scroll_text(self, text, scroll_interval=0.1, display_count=1):
         """
         Display arbitrary text on the Scroll pHAT
         :param str or list[str] text: text message to display
         :param float scroll_interval: time in seconds to shift the scroll phat display by one pixel to the left
-        :param int repeat: how many times to repeat a given information in the display cycle
+        :param int display_count: how many times to repeat a given information in the display cycle
         """
 
         if not len(text):
@@ -508,8 +510,8 @@ class StatusDaemon(Daemon):
             text = ' | '.join(text)
 
         self.logger.debug('Scrolling: {}'.format(text))
-        while repeat > 0:
-            repeat -= 1
+        while display_count > 0:
+            display_count -= 1
             scrollphat.clear()
             scrollphat.write_string(text, 11)
             for i in range(0, scrollphat.buffer_len()):
@@ -548,22 +550,41 @@ class StatusDaemon(Daemon):
         loop_runs = 0
         while True:
             try:
-                if self.configuration.getboolean('scrollphat', 'display_time', fallback=False):
-                    self.scroll_time(repeat=2)
+                if self.configuration.getboolean('scrollphat', 'time_display', fallback=False):
+                    interval = self.configuration.getfloat('scrollphat', 'time_interval',
+                                                           fallback=self.DEFAULT_INTERVAL)
+                    display_count = self.configuration.getint('scrollphat', 'time_display_count',
+                                                              fallback=self.DEFAULT_DISPLAY_COUNT)
+                    self.scroll_time(display_count=display_count, scroll_interval=interval)
 
-                if self.configuration.getboolean('scrollphat', 'display_network', fallback=False):
+                if self.configuration.getboolean('scrollphat', 'network_display', fallback=False):
                     if divmod(loop_runs, 10)[1] == 0:
                         interfaces = ['eth0', 'wlan0']
-                        self.scroll_netinfo(interfaces, scroll_interval=0.07)
+                        interval = self.configuration.getfloat('scrollphat', 'network_interval',
+                                                               fallback=self.DEFAULT_INTERVAL)
+                        display_count = self.configuration.getint('scrollphat', 'network_display_count',
+                                                                  fallback=self.DEFAULT_DISPLAY_COUNT)
+                        self.scroll_netinfo(interfaces, scroll_interval=interval, display_count=display_count)
 
-                if self.configuration.getboolean('scrollphat', 'display_cpuload', fallback=False):
-                    self.scroll_cpuload()
+                if self.configuration.getboolean('scrollphat', 'cpuload_display', fallback=False):
+                    display_count = self.configuration.getint('scrollphat', 'cpuload_display_count',
+                                                              fallback=self.DEFAULT_DISPLAY_COUNT)
+                    interval = self.configuration.getint('scrollphat', 'cpuload_interval',
+                                                         fallback=self.DEFAULT_INTERVAL)
+                    self.scroll_cpuload(display_count=display_count, scroll_interval=interval)
 
-                if self.configuration.getboolean('scrollphat', 'display_cpugraph', fallback=False):
-                    self.scroll_cpugraph()
+                if self.configuration.getboolean('scrollphat', 'cpugraph_display', fallback=False):
+                    duration = self.configuration.getint('scrollphat', 'cpugraph_duration', fallback=15)
+                    interval = self.configuration.getfloat('scrollphat', 'cpugraph_interval',
+                                                           fallback=self.DEFAULT_INTERVAL)
+                    self.scroll_cpugraph(duration=duration, scroll_interval=interval)
 
-                if self.configuration.getboolean('scrollphat', 'display_weather', fallback=False):
-                    self.scroll_weather(scroll_interval=0.15, repeat=2)
+                if self.configuration.getboolean('scrollphat', 'weather_display', fallback=False):
+                    display_count = self.configuration.getint('scrollphat', 'weather_display_count',
+                                                              fallback=self.DEFAULT_DISPLAY_COUNT)
+                    interval = self.configuration.getfloat('scrollphat', 'weather_interval',
+                                                           fallback=self.DEFAULT_INTERVAL)
+                    self.scroll_weather(scroll_interval=interval, display_count=display_count)
 
                 loop_runs += 1
 
