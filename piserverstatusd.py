@@ -155,14 +155,16 @@ class StatusDaemon(Daemon):
         for handler in self.logger.handlers:
             if isinstance(handler, logging.StreamHandler):
                 formatter = logging.Formatter(
-                    '%(asctime)s %(name)s[%(process)s]: [%(levelname)s] %(lineno)s:%(funcName)s(): %(message)s'
+                    '%(asctime)s [%(levelname)s] %(lineno)s:%(funcName)s(): %(message)s'
                 )
                 handler.setLevel(loglevel)
                 handler.setFormatter(formatter)
 
             elif isinstance(handler, logging.handlers.SysLogHandler):
 
-                formatter = logging.Formatter('%(levelname)s %(module)s: %(lineno)s:%(funcName)s(): %(message)s')
+                formatter = logging.Formatter(
+                    '%(name)s[%(process)s]: %(levelname)s %(module)s:%(lineno)s:%(funcName)s(): %(message)s'
+                )
                 handler.facility = 'daemon'
                 handler.setLevel(loglevel)
                 handler.setFormatter(formatter)
